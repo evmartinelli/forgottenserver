@@ -1,65 +1,51 @@
-// Copyright 2023 The Forgotten Server Authors. All rights reserved.
-// Use of this source code is governed by the GPL-2.0 License that can be found in the LICENSE file.
+/**
+ * The Forgotten Server - a free and open-source MMORPG server emulator
+ * Copyright (C) 2015  Mark Samman <mark.samman@gmail.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
 
 #include "otpch.h"
 
 #include "protocol.h"
-
+#include "scheduler.h"
+#include "connection.h"
 #include "outputmessage.h"
 #include "rsa.h"
-#include "xtea.h"
 
 extern RSA g_RSA;
 
-namespace {
-
-void XTEA_encrypt(OutputMessage& msg, const xtea::round_keys& key)
+void Protocol::onSendMessage(OutputMessage_ptr msg)
 {
-	// The message must be a multiple of 8
-	size_t paddingBytes = msg.getLength() % 8u;
-	if (paddingBytes != 0) {
-		msg.addPaddingBytes(8 - paddingBytes);
-	}
-
-	uint8_t* buffer = msg.getOutputBuffer();
-	xtea::encrypt(buffer, msg.getLength(), key);
-}
-
-bool XTEA_decrypt(NetworkMessage& msg, const xtea::round_keys& key)
-{
-	if (((msg.getLength() - 6) & 7) != 0) {
-		return false;
-	}
-
-	uint8_t* buffer = msg.getBuffer() + msg.getBufferPosition();
-	xtea::decrypt(buffer, msg.getLength() - 6, key);
-
-	uint16_t innerLength = msg.get<uint16_t>();
-	if (innerLength + 8 > msg.getLength()) {
-		return false;
-	}
-
-	msg.setLength(innerLength);
-	return true;
-}
-
-} // namespace
-
-void Protocol::onSendMessage(const OutputMessage_ptr& msg)
-{
-	if (!rawMessages) {
+	if (!m_rawMessages) {
 		msg->writeMessageLength();
 
-		if (encryptionEnabled) {
-			XTEA_encrypt(*msg, key);
-			msg->addCryptoHeader(checksumMode, sequenceNumber);
+		if (m_encryptionEnabled) {
+			XTEA_encrypt(*msg);
+			msg->addCryptoHeader(m_checksumEnabled);
 		}
+	}
+
+	if (msg == m_outputBuffer) {
+		m_outputBuffer.reset();
 	}
 }
 
 void Protocol::onRecvMessage(NetworkMessage& msg)
 {
-	if (encryptionEnabled && !XTEA_decrypt(msg, key)) {
+	if (m_encryptionEnabled && !XTEA_decrypt(msg)) {
 		return;
 	}
 
@@ -68,31 +54,122 @@ void Protocol::onRecvMessage(NetworkMessage& msg)
 
 OutputMessage_ptr Protocol::getOutputBuffer(int32_t size)
 {
-	// dispatcher thread
-	if (!outputBuffer) {
-		outputBuffer = OutputMessagePool::getOutputMessage();
-	} else if ((outputBuffer->getLength() + size) > NetworkMessage::MAX_PROTOCOL_BODY_LENGTH) {
-		send(outputBuffer);
-		outputBuffer = OutputMessagePool::getOutputMessage();
+	if (m_outputBuffer && NetworkMessage::max_protocol_body_length >= m_outputBuffer->getLength() + size) {
+		return m_outputBuffer;
+	} else if (m_connection) {
+		m_outputBuffer = OutputMessagePool::getInstance()->getOutputMessage(this);
+		return m_outputBuffer;
 	}
-	return outputBuffer;
+	return OutputMessage_ptr();
+}
+
+void Protocol::releaseProtocol()
+{
+	if (m_refCount > 0) {
+		//Reschedule it and try again.
+		g_scheduler.addEvent(createSchedulerTask(SCHEDULER_MINTICKS, std::bind(&Protocol::releaseProtocol, this)));
+	} else {
+		deleteProtocolTask();
+	}
+}
+
+void Protocol::deleteProtocolTask()
+{
+	//dispather thread
+	assert(m_refCount == 0);
+	setConnection(Connection_ptr());
+
+	delete this;
+}
+
+void Protocol::XTEA_encrypt(OutputMessage& msg) const
+{
+	const uint32_t delta = 0x61C88647;
+	uint32_t k[4];
+	k[0] = m_key[0]; k[1] = m_key[1]; k[2] = m_key[2]; k[3] = m_key[3];
+
+	int32_t messageLength = msg.getLength();
+
+	//add bytes until reach 8 multiple
+	uint32_t n;
+	if ((messageLength % 8) != 0){
+		n = 8 - (messageLength % 8);
+		msg.addPaddingBytes(n);
+		messageLength = messageLength + n;
+	}
+
+	int read_pos = 0;
+	uint32_t* buffer = reinterpret_cast<uint32_t*>(msg.getOutputBuffer());
+	while (read_pos < messageLength / 4){
+		uint32_t v0 = buffer[read_pos], v1 = buffer[read_pos + 1];
+		uint32_t sum = 0;
+
+		for (int32_t i = 0; i < 32; ++i) {
+			v0 += ((v1 << 4 ^ v1 >> 5) + v1) ^ (sum + k[sum & 3]);
+			sum -= delta;
+			v1 += ((v0 << 4 ^ v0 >> 5) + v0) ^ (sum + k[sum >> 11 & 3]);
+		}
+		buffer[read_pos] = v0; buffer[read_pos + 1] = v1;
+		read_pos = read_pos + 2;
+	}
+}
+
+bool Protocol::XTEA_decrypt(NetworkMessage& msg) const
+{
+	if ((msg.getLength() - 2) % 8 != 0){
+		std::cout << "Failure: [Protocol::XTEA_decrypt]. Not valid encrypted message size"
+			<< std::endl;
+		return false;
+	}
+
+	uint32_t k[4];
+	k[0] = m_key[0]; k[1] = m_key[1]; k[2] = m_key[2]; k[3] = m_key[3];
+
+	const uint32_t delta = 0x61C88647;
+
+	uint32_t* buffer = reinterpret_cast<uint32_t*>(msg.getBuffer() + msg.getBufferPosition());
+
+	int read_pos = 0;
+	int32_t messageLength = msg.getLength();
+	while (read_pos < messageLength / 4){
+		uint32_t v0 = buffer[read_pos], v1 = buffer[read_pos + 1];
+		uint32_t sum = 0xC6EF3720;
+
+		for (int32_t i = 0; i<32; i++) {
+			v1 -= ((v0 << 4 ^ v0 >> 5) + v0) ^ (sum + k[sum >> 11 & 3]);
+			sum += delta;
+			v0 -= ((v1 << 4 ^ v1 >> 5) + v1) ^ (sum + k[sum & 3]);
+		}
+		buffer[read_pos] = v0; buffer[read_pos + 1] = v1;
+		read_pos = read_pos + 2;
+	}
+
+	int innerLength = msg.get<uint16_t>();
+	if (innerLength > msg.getLength() - 4){
+		std::cout << "Failure: [Protocol::XTEA_decrypt]. Not valid unencrypted message size"
+			<< std::endl;
+		return false;
+	}
+
+	msg.setLength(innerLength);
+	return true;
 }
 
 bool Protocol::RSA_decrypt(NetworkMessage& msg)
 {
-	if ((msg.getLength() - msg.getBufferPosition()) < 128) {
+	if (msg.getLength() - msg.getBufferPosition() != 128) {
 		return false;
 	}
 
-	g_RSA.decrypt(reinterpret_cast<char*>(msg.getBuffer()) + msg.getBufferPosition()); // does not break strict aliasing
+	g_RSA.decrypt(reinterpret_cast<char*>(msg.getBuffer()) + msg.getBufferPosition());
 	return msg.getByte() == 0;
 }
 
-Connection::Address Protocol::getIP() const
+uint32_t Protocol::getIP() const
 {
-	if (auto connection = getConnection()) {
-		return connection->getIP();
+	if (getConnection()) {
+		return getConnection()->getIP();
 	}
 
-	return {};
+	return 0;
 }

@@ -1,45 +1,55 @@
-// Copyright 2023 The Forgotten Server Authors. All rights reserved.
-// Use of this source code is governed by the GPL-2.0 License that can be found in the LICENSE file.
+/**
+ * The Forgotten Server - a free and open-source MMORPG server emulator
+ * Copyright (C) 2015  Mark Samman <mark.samman@gmail.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
 
 #include "otpch.h"
 
+#include "outputmessage.h"
 #include "server.h"
-
-#include "ban.h"
-#include "configmanager.h"
+#include "connection.h"
 #include "scheduler.h"
+#include "configmanager.h"
+#include "ban.h"
 
 extern ConfigManager g_config;
 Ban g_bans;
 
-namespace {
-
-boost::asio::ip::address getListenAddress()
+ServiceManager::ServiceManager()
+	: m_io_service(), death_timer(m_io_service), running(false)
 {
-	if (g_config.getBoolean(ConfigManager::BIND_ONLY_GLOBAL_ADDRESS)) {
-		return boost::asio::ip::address::from_string(g_config.getString(ConfigManager::IP));
-	}
-	return boost::asio::ip::address_v6::any();
+	//
 }
 
-void openAcceptor(std::weak_ptr<ServicePort> weak_service, uint16_t port)
+ServiceManager::~ServiceManager()
 {
-	if (auto service = weak_service.lock()) {
-		service->open(port);
-	}
+	stop();
 }
 
-} // namespace
-
-ServiceManager::~ServiceManager() { stop(); }
-
-void ServiceManager::die() { io_service.stop(); }
+void ServiceManager::die()
+{
+	m_io_service.stop();
+}
 
 void ServiceManager::run()
 {
 	assert(!running);
 	running = true;
-	io_service.run();
+	m_io_service.run();
 }
 
 void ServiceManager::stop()
@@ -50,150 +60,187 @@ void ServiceManager::stop()
 
 	running = false;
 
-	for (auto& servicePortIt : acceptors) {
+	for (std::map<uint16_t, ServicePort_ptr>::iterator it = m_acceptors.begin();
+	        it != m_acceptors.end(); ++it) {
 		try {
-			io_service.post([servicePort = servicePortIt.second]() { servicePort->onStopServer(); });
+			m_io_service.post(std::bind(&ServicePort::onStopServer, it->second));
 		} catch (boost::system::system_error& e) {
 			std::cout << "[ServiceManager::stop] Network Error: " << e.what() << std::endl;
 		}
 	}
 
-	acceptors.clear();
+	m_acceptors.clear();
 
-	death_timer.expires_from_now(std::chrono::seconds(3));
-	death_timer.async_wait([this](const boost::system::error_code&) { die(); });
+	OutputMessagePool::getInstance()->stop();
+
+	death_timer.expires_from_now(boost::posix_time::seconds(3));
+	death_timer.async_wait(std::bind(&ServiceManager::die, this));
 }
 
-ServicePort::~ServicePort() { close(); }
+ServicePort::ServicePort(boost::asio::io_service& io_service) :
+	m_io_service(io_service),
+	m_acceptor(nullptr),
+	m_serverPort(0),
+	m_pendingStart(false)
+{
+	//
+}
 
-bool ServicePort::is_single_socket() const { return !services.empty() && services.front()->is_single_socket(); }
+ServicePort::~ServicePort()
+{
+	close();
+}
+
+bool ServicePort::is_single_socket() const
+{
+	return !m_services.empty() && m_services.front()->is_single_socket();
+}
 
 std::string ServicePort::get_protocol_names() const
 {
-	if (services.empty()) {
+	if (m_services.empty()) {
 		return std::string();
 	}
 
-	std::string str = services.front()->get_protocol_name();
-	for (size_t i = 1; i < services.size(); ++i) {
+	std::string str = m_services.front()->get_protocol_name();
+	for (size_t i = 1; i < m_services.size(); ++i) {
 		str.push_back(',');
 		str.push_back(' ');
-		str.append(services[i]->get_protocol_name());
+		str.append(m_services[i]->get_protocol_name());
 	}
 	return str;
 }
 
 void ServicePort::accept()
 {
-	if (!acceptor) {
+	if (!m_acceptor) {
 		return;
 	}
 
-	auto connection = ConnectionManager::getInstance().createConnection(io_service, shared_from_this());
-	acceptor->async_accept(connection->getSocket(),
-	                       [=, thisPtr = shared_from_this()](const boost::system::error_code& error) {
-		                       thisPtr->onAccept(connection, error);
-	                       });
+	boost::asio::ip::tcp::socket* socket = new boost::asio::ip::tcp::socket(m_io_service);
+	m_acceptor->async_accept(*socket, std::bind(&ServicePort::onAccept, this, socket, std::placeholders::_1));
 }
 
-void ServicePort::onAccept(Connection_ptr connection, const boost::system::error_code& error)
+void ServicePort::onAccept(boost::asio::ip::tcp::socket* socket, const boost::system::error_code& error)
 {
 	if (!error) {
-		if (services.empty()) {
+		if (m_services.empty()) {
 			return;
 		}
 
-		const auto& remote_ip = connection->getIP();
-		if (g_bans.acceptConnection(remote_ip)) {
-			Service_ptr service = services.front();
+		boost::system::error_code socketError;
+		const boost::asio::ip::tcp::endpoint endpoint = socket->remote_endpoint(socketError);
+
+		uint32_t remote_ip = 0;
+		if (!socketError) {
+			remote_ip = htonl(endpoint.address().to_v4().to_ulong());
+		}
+
+		if (remote_ip != 0 && g_bans.acceptConnection(remote_ip)) {
+			Connection_ptr connection = ConnectionManager::getInstance()->createConnection(socket, m_io_service, shared_from_this());
+			Service_ptr service = m_services.front();
 			if (service->is_single_socket()) {
 				connection->accept(service->make_protocol(connection));
 			} else {
 				connection->accept();
 			}
-		} else {
-			connection->close(Connection::FORCE_CLOSE);
+		} else if (socket->is_open()) {
+			socket->shutdown(boost::asio::ip::tcp::socket::shutdown_both, socketError);
+			socket->close(socketError);
+			delete socket;
 		}
 
 		accept();
 	} else if (error != boost::asio::error::operation_aborted) {
-		if (!pendingStart) {
+		if (!m_pendingStart) {
 			close();
-			pendingStart = true;
-			g_scheduler.addEvent(createSchedulerTask(
-			    15000, [serverPort = this->serverPort, service = std::weak_ptr<ServicePort>(shared_from_this())]() {
-				    openAcceptor(service, serverPort);
-			    }));
+			m_pendingStart = true;
+			g_scheduler.addEvent(createSchedulerTask(15000,
+			                     std::bind(&ServicePort::openAcceptor, std::weak_ptr<ServicePort>(shared_from_this()), m_serverPort)));
 		}
 	}
 }
 
-Protocol_ptr ServicePort::make_protocol(NetworkMessage& msg, const Connection_ptr& connection) const
+Protocol* ServicePort::make_protocol(bool checksummed, NetworkMessage& msg) const
 {
 	uint8_t protocolID = msg.getByte();
-	for (auto& service : services) {
+	for (Service_ptr service : m_services) {
 		if (protocolID != service->get_protocol_identifier()) {
 			continue;
 		}
-		return service->make_protocol(connection);
+
+		if ((checksummed && service->is_checksummed()) || !service->is_checksummed()) {
+			return service->make_protocol(Connection_ptr());
+		}
 	}
 	return nullptr;
 }
 
-void ServicePort::onStopServer() { close(); }
+void ServicePort::onStopServer()
+{
+	close();
+}
+
+void ServicePort::openAcceptor(std::weak_ptr<ServicePort> weak_service, uint16_t port)
+{
+	if (weak_service.expired()) {
+		return;
+	}
+
+	if (ServicePort_ptr service = weak_service.lock()) {
+		service->open(port);
+	}
+}
 
 void ServicePort::open(uint16_t port)
 {
-	namespace ip = boost::asio::ip;
-
 	close();
 
-	serverPort = port;
-	pendingStart = false;
+	m_serverPort = port;
+	m_pendingStart = false;
 
 	try {
-		auto address = getListenAddress();
-
-		acceptor = std::make_unique<ip::tcp::acceptor>(io_service, ip::tcp::endpoint{address, serverPort});
-		if (address.is_v6()) {
-			ip::v6_only option;
-			acceptor->get_option(option);
-			if (option) {
-				boost::system::error_code err;
-				acceptor->set_option(ip::v6_only{false}, err);
-				if (err) {
-					std::cout << "[Warning - ServicePort::open] Enabling IPv4 support failed: " << err.message()
-					          << std::endl;
-				}
-			}
+		if (g_config.getBoolean(ConfigManager::BIND_ONLY_GLOBAL_ADDRESS)) {
+			m_acceptor = new boost::asio::ip::tcp::acceptor(m_io_service, boost::asio::ip::tcp::endpoint(
+			            boost::asio::ip::address(boost::asio::ip::address_v4::from_string(g_config.getString(ConfigManager::IP))), m_serverPort));
+		} else {
+			m_acceptor = new boost::asio::ip::tcp::acceptor(m_io_service, boost::asio::ip::tcp::endpoint(
+			            boost::asio::ip::address(boost::asio::ip::address_v4(INADDR_ANY)), m_serverPort));
 		}
-		acceptor->set_option(ip::tcp::no_delay{true});
+
+		m_acceptor->set_option(boost::asio::ip::tcp::no_delay(true));
 
 		accept();
 	} catch (boost::system::system_error& e) {
 		std::cout << "[ServicePort::open] Error: " << e.what() << std::endl;
 
-		pendingStart = true;
-		g_scheduler.addEvent(createSchedulerTask(
-		    15000,
-		    [port, service = std::weak_ptr<ServicePort>(shared_from_this())]() { openAcceptor(service, port); }));
+		m_pendingStart = true;
+		g_scheduler.addEvent(createSchedulerTask(15000,
+		                     std::bind(&ServicePort::openAcceptor, std::weak_ptr<ServicePort>(shared_from_this()), port)));
 	}
 }
 
 void ServicePort::close()
 {
-	if (acceptor && acceptor->is_open()) {
-		boost::system::error_code error;
-		acceptor->close(error);
+	if (m_acceptor) {
+		if (m_acceptor->is_open()) {
+			boost::system::error_code error;
+			m_acceptor->close(error);
+		}
+
+		delete m_acceptor;
+		m_acceptor = nullptr;
 	}
 }
 
-bool ServicePort::add_service(const Service_ptr& new_svc)
+bool ServicePort::add_service(Service_ptr new_svc)
 {
-	if (std::any_of(services.begin(), services.end(), [](const Service_ptr& svc) { return svc->is_single_socket(); })) {
-		return false;
+	for (Service_ptr& svc : m_services) {
+		if (svc->is_single_socket()) {
+			return false;
+		}
 	}
 
-	services.push_back(new_svc);
+	m_services.push_back(new_svc);
 	return true;
 }

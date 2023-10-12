@@ -1,64 +1,97 @@
-// Copyright 2023 The Forgotten Server Authors. All rights reserved.
-// Use of this source code is governed by the GPL-2.0 License that can be found in the LICENSE file.
+/**
+ * The Forgotten Server - a free and open-source MMORPG server emulator
+ * Copyright (C) 2015  Mark Samman <mark.samman@gmail.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
 
 #include "otpch.h"
 
 #include "rsa.h"
 
-#include <cryptopp/base64.h>
-#include <cryptopp/osrng.h>
-#include <fstream>
-
-static CryptoPP::AutoSeededRandomPool prng;
-
-void RSA::decrypt(char* msg) const
+RSA::RSA()
 {
-	try {
-		CryptoPP::Integer m{reinterpret_cast<uint8_t*>(msg), 128};
-		auto c = pk.CalculateInverse(prng, m);
-		c.Encode(reinterpret_cast<uint8_t*>(msg), 128);
-	} catch (const CryptoPP::Exception& e) {
-		fmt::print(fg(fmt::color::crimson) | fmt::emphasis::bold, e.what(), "\n");
-	}
+	mpz_init(m_n);
+	mpz_init2(m_d, 1024);
 }
 
-static const std::string header = "-----BEGIN RSA PRIVATE KEY-----";
-static const std::string footer = "-----END RSA PRIVATE KEY-----";
-
-void RSA::loadPEM(const std::string& filename)
+RSA::~RSA()
 {
-	std::ifstream file{filename};
+	mpz_clear(m_n);
+	mpz_clear(m_d);
+}
 
-	if (!file.is_open()) {
-		throw std::runtime_error("Missing file " + filename + ".");
-	}
+void RSA::setKey(const char* p, const char* q)
+{
+	std::lock_guard<std::recursive_mutex> lockClass(lock);
 
-	std::ostringstream oss;
-	for (std::string line; std::getline(file, line); oss << line)
-		;
-	std::string key = oss.str();
+	mpz_t m_p, m_q, m_e;
+	mpz_init2(m_p, 1024);
+	mpz_init2(m_q, 1024);
+	mpz_init(m_e);
 
-	auto headerIndex = key.find(header);
-	if (headerIndex == std::string::npos) {
-		throw std::runtime_error("Missing RSA private key PEM header.");
-	}
+	mpz_set_str(m_p, p, 10);
+	mpz_set_str(m_q, q, 10);
 
-	auto footerIndex = key.find(footer, headerIndex + 1);
-	if (footerIndex == std::string::npos) {
-		throw std::runtime_error("Missing RSA private key PEM footer.");
-	}
+	// e = 65537
+	mpz_set_ui(m_e, 65537);
 
-	key = key.substr(headerIndex + header.size(), footerIndex - headerIndex - header.size());
+	// n = p * q
+	mpz_mul(m_n, m_p, m_q);
 
-	CryptoPP::ByteQueue queue;
-	CryptoPP::Base64Decoder decoder;
-	decoder.Attach(new CryptoPP::Redirector(queue));
-	decoder.Put(reinterpret_cast<const uint8_t*>(key.c_str()), key.size());
-	decoder.MessageEnd();
+	// d = e^-1 mod (p - 1)(q - 1)
+	mpz_t p_1, q_1, pq_1;
+	mpz_init2(p_1, 1024);
+	mpz_init2(q_1, 1024);
+	mpz_init2(pq_1, 1024);
 
-	pk.BERDecodePrivateKey(queue, false, queue.MaxRetrievable());
+	mpz_sub_ui(p_1, m_p, 1);
+	mpz_sub_ui(q_1, m_q, 1);
 
-	if (!pk.Validate(prng, 3)) {
-		throw std::runtime_error("RSA private key is not valid.");
-	}
+	// pq_1 = (p -1)(q - 1)
+	mpz_mul(pq_1, p_1, q_1);
+
+	// m_d = m_e^-1 mod (p - 1)(q - 1)
+	mpz_invert(m_d, m_e, pq_1);
+
+	mpz_clear(p_1);
+	mpz_clear(q_1);
+	mpz_clear(pq_1);
+
+	mpz_clear(m_p);
+	mpz_clear(m_q);
+	mpz_clear(m_e);
+}
+
+void RSA::decrypt(char* msg)
+{
+	std::lock_guard<std::recursive_mutex> lockClass(lock);
+
+	mpz_t c, m;
+	mpz_init2(c, 1024);
+	mpz_init2(m, 1024);
+
+	mpz_import(c, 128, 1, 1, 0, 0, msg);
+
+	// m = c^d mod n
+	mpz_powm(m, c, m_d, m_n);
+
+	size_t count = (mpz_sizeinbase(m, 2) + 7) / 8;
+	memset(msg, 0, 128 - count);
+	mpz_export(msg + (128 - count), nullptr, 1, 1, 0, 0, m);
+
+	mpz_clear(c);
+	mpz_clear(m);
 }

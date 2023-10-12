@@ -1,26 +1,54 @@
-// Copyright 2023 The Forgotten Server Authors. All rights reserved.
-// Use of this source code is governed by the GPL-2.0 License that can be found in the LICENSE file.
+/**
+ * The Forgotten Server - a free and open-source MMORPG server emulator
+ * Copyright (C) 2015  Mark Samman <mark.samman@gmail.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
 
 #include "otpch.h"
 
 #include "networkmessage.h"
 
 #include "container.h"
-#include "podium.h"
+#include "creature.h"
+#include "player.h"
 
-std::string_view NetworkMessage::getString(uint16_t stringLen /* = 0*/)
+#include "position.h"
+#include "rsa.h"
+
+int32_t NetworkMessage::decodeHeader()
+{
+	int32_t newSize = static_cast<int32_t>(buffer[0] | buffer[1] << 8);
+	length = newSize;
+	return length;
+}
+
+/******************************************************************************/
+std::string NetworkMessage::getString(uint16_t stringLen/* = 0*/)
 {
 	if (stringLen == 0) {
 		stringLen = get<uint16_t>();
 	}
 
 	if (!canRead(stringLen)) {
-		return {};
+		return std::string();
 	}
 
-	auto it = buffer.data() + info.position;
-	info.position += stringLen;
-	return {reinterpret_cast<char*>(it), stringLen};
+	char* v = reinterpret_cast<char*>(buffer) + position;
+	position += stringLen;
+	return std::string(v, stringLen);
 }
 
 Position NetworkMessage::getPosition()
@@ -31,25 +59,38 @@ Position NetworkMessage::getPosition()
 	pos.z = getByte();
 	return pos;
 }
+/******************************************************************************/
 
-void NetworkMessage::addString(std::string_view value)
+void NetworkMessage::addString(const std::string& value)
 {
-	size_t stringLen = value.size();
+	size_t stringLen = value.length();
 	if (!canAdd(stringLen + 2) || stringLen > 8192) {
 		return;
 	}
 
 	add<uint16_t>(stringLen);
-	std::memcpy(buffer.data() + info.position, value.data(), stringLen);
-	info.position += stringLen;
-	info.length += stringLen;
+	memcpy(buffer + position, value.c_str(), stringLen);
+	position += stringLen;
+	length += stringLen;
 }
 
-void NetworkMessage::addDouble(double value, uint8_t precision /* = 2*/)
+void NetworkMessage::addString(const char* value)
+{
+	size_t stringLen = strlen(value);
+	if (!canAdd(stringLen + 2) || stringLen > 8192) {
+		return;
+	}
+
+	add<uint16_t>(stringLen);
+	memcpy(buffer + position, value, stringLen);
+	position += stringLen;
+	length += stringLen;
+}
+
+void NetworkMessage::addDouble(double value, uint8_t precision/* = 2*/)
 {
 	addByte(precision);
-	add<uint32_t>(static_cast<uint32_t>((value * std::pow(static_cast<float>(10), precision)) +
-	                                    std::numeric_limits<int32_t>::max()));
+	add<uint32_t>((value * std::pow(static_cast<float>(10), precision)) + std::numeric_limits<int32_t>::max());
 }
 
 void NetworkMessage::addBytes(const char* bytes, size_t size)
@@ -58,9 +99,9 @@ void NetworkMessage::addBytes(const char* bytes, size_t size)
 		return;
 	}
 
-	std::memcpy(buffer.data() + info.position, bytes, size);
-	info.position += size;
-	info.length += size;
+	memcpy(buffer + position, bytes, size);
+	position += size;
+	length += size;
 }
 
 void NetworkMessage::addPaddingBytes(size_t n)
@@ -69,8 +110,8 @@ void NetworkMessage::addPaddingBytes(size_t n)
 		return;
 	}
 
-	std::fill_n(buffer.data() + info.position, n, 0x33);
-	info.length += n;
+	memset(buffer + position, 0x33, n);
+	length += n;
 }
 
 void NetworkMessage::addPosition(const Position& pos)
@@ -90,18 +131,6 @@ void NetworkMessage::addItem(uint16_t id, uint8_t count)
 		addByte(count);
 	} else if (it.isSplash() || it.isFluidContainer()) {
 		addByte(fluidMap[count & 7]);
-	} else if (it.isContainer()) {
-		addByte(0x00); // assigned loot container icon
-		addByte(0x00); // quiver ammo count
-	} else if (it.classification > 0) {
-		addByte(0x00); // item tier (0-10)
-	}
-
-	if (it.isPodium()) {
-		add<uint16_t>(0); // looktype
-		add<uint16_t>(0); // lookmount
-		addByte(2);       // direction
-		addByte(0x01);    // is visible (bool)
 	}
 }
 
@@ -115,58 +144,10 @@ void NetworkMessage::addItem(const Item* item)
 		addByte(std::min<uint16_t>(0xFF, item->getItemCount()));
 	} else if (it.isSplash() || it.isFluidContainer()) {
 		addByte(fluidMap[item->getFluidType() & 7]);
-	} else if (it.classification > 0) {
-		addByte(0x00); // item tier (0-10)
-	}
-
-	if (it.isContainer()) {
-		addByte(0x00); // assigned loot container icon
-		// quiver ammo count
-		const Container* container = item->getContainer();
-		if (container && it.weaponType == WEAPON_QUIVER) {
-			addByte(0x01);
-			add<uint32_t>(container->getAmmoCount());
-		} else {
-			addByte(0x00);
-		}
-	}
-
-	// display outfit on the podium
-	if (it.isPodium()) {
-		const Podium* podium = item->getPodium();
-		const Outfit_t& outfit = podium->getOutfit();
-
-		// add outfit
-		if (podium->hasFlag(PODIUM_SHOW_OUTFIT)) {
-			add<uint16_t>(outfit.lookType);
-			if (outfit.lookType != 0) {
-				addByte(outfit.lookHead);
-				addByte(outfit.lookBody);
-				addByte(outfit.lookLegs);
-				addByte(outfit.lookFeet);
-				addByte(outfit.lookAddons);
-			}
-		} else {
-			add<uint16_t>(0);
-		}
-
-		// add mount
-		if (podium->hasFlag(PODIUM_SHOW_MOUNT)) {
-			add<uint16_t>(outfit.lookMount);
-			if (outfit.lookMount != 0) {
-				addByte(outfit.lookMountHead);
-				addByte(outfit.lookMountBody);
-				addByte(outfit.lookMountLegs);
-				addByte(outfit.lookMountFeet);
-			}
-		} else {
-			add<uint16_t>(0);
-		}
-
-		addByte(podium->getDirection());
-		addByte(podium->hasFlag(PODIUM_SHOW_PLATFORM) ? 0x01 : 0x00);
-		return;
 	}
 }
 
-void NetworkMessage::addItemId(uint16_t itemId) { add<uint16_t>(Item::items[itemId].clientId); }
+void NetworkMessage::addItemId(uint16_t itemId)
+{
+	add<uint16_t>(Item::items[itemId].clientId);
+}

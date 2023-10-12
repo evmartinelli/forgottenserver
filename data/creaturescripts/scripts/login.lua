@@ -1,38 +1,55 @@
+local events = {
+	'PlayerDeath',
+	'LevelSave',
+	'SvargrondArenaKill',
+	'DropLoot'
+}
+
+local townIds = {1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 12}
+
 function onLogin(player)
-	local serverName = configManager.getString(configKeys.SERVER_NAME)
-	local loginStr = "Welcome to " .. serverName .. "!"
+	local loginStr = 'Welcome to ' .. configManager.getString(configKeys.SERVER_NAME) .. '!'
 	if player:getLastLoginSaved() <= 0 then
-		loginStr = loginStr .. " Please choose your outfit."
+		loginStr = loginStr .. ' Please choose your outfit.'
 		player:sendOutfitWindow()
+		for i = 1, #townIds do
+			local depotChest = player:getDepotLocker(townIds[i]):addItem(1987, 1)
+			if depotChest then
+				depotChest:transform(2594)
+			end
+		end
 	else
-		player:sendTextMessage(MESSAGE_STATUS_DEFAULT, loginStr)
-		loginStr = string.format("Your last visit in %s: %s.", serverName, os.date("%d %b %Y %X", player:getLastLoginSaved()))
+		if loginStr ~= '' then
+			player:sendTextMessage(MESSAGE_STATUS_DEFAULT, loginStr)
+		end
+
+		loginStr = string.format('Your last visit was on %s.', os.date('%a %b %d %X %Y', player:getLastLoginSaved()))
 	end
 	player:sendTextMessage(MESSAGE_STATUS_DEFAULT, loginStr)
 
+	-- Stamina
+	nextUseStaminaTime[player.uid] = 0
+	
 	-- Promotion
 	local vocation = player:getVocation()
 	local promotion = vocation:getPromotion()
 	if player:isPremium() then
-		local value = player:getStorageValue(PlayerStorageKeys.promotion)
-		if value == 1 then
+		local value = player:getStorageValue(STORAGEVALUE_PROMOTION)
+		if not promotion and value ~= 1 then
+			player:setStorageValue(STORAGEVALUE_PROMOTION, 1)
+		elseif value == 1 then
 			player:setVocation(promotion)
 		end
 	elseif not promotion then
 		player:setVocation(vocation:getDemotion())
 	end
 
-	-- Update client exp display
-	player:updateClientExpDisplay()
-
-	-- achievements points for highscores
-	if player:getStorageValue(PlayerStorageKeys.achievementsTotal) == -1 then
-		player:setStorageValue(PlayerStorageKeys.achievementsTotal, player:getAchievementPoints())
+	if player:getStorageValue(2038) == 1 then -- Task System register if still has task
+		player:registerEvent("TaskKill")
 	end
 
-	-- Events
-	player:registerEvent("PlayerDeath")
-	player:registerEvent("DropLoot")
-	player:registerEvent("BestiaryKills")
+	for i = 1, #events do
+		player:registerEvent(events[i])
+	end
 	return true
 end

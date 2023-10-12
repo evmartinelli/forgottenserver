@@ -1,58 +1,32 @@
-// Copyright 2023 The Forgotten Server Authors. All rights reserved.
-// Use of this source code is governed by the GPL-2.0 License that can be found in the LICENSE file.
+/**
+ * The Forgotten Server - a free and open-source MMORPG server emulator
+ * Copyright (C) 2015  Mark Samman <mark.samman@gmail.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
 
-#ifndef FS_ENUMS_H
-#define FS_ENUMS_H
+#ifndef FS_ENUMS_H_003445999FEE4A67BCECBE918B0124CE
+#define FS_ENUMS_H_003445999FEE4A67BCECBE918B0124CE
 
-enum RuleViolationType_t : uint8_t
-{
-	REPORT_TYPE_NAME = 0,
-	REPORT_TYPE_STATEMENT = 1,
-	REPORT_TYPE_BOT = 2
-};
-
-enum RuleViolationReasons_t : uint8_t
-{
-	REPORT_REASON_NAMEINAPPROPRIATE = 0,
-	REPORT_REASON_NAMEPOORFORMATTED = 1,
-	REPORT_REASON_NAMEADVERTISING = 2,
-	REPORT_REASON_NAMEUNFITTING = 3,
-	REPORT_REASON_NAMERULEVIOLATION = 4,
-	REPORT_REASON_INSULTINGSTATEMENT = 5,
-	REPORT_REASON_SPAMMING = 6,
-	REPORT_REASON_ADVERTISINGSTATEMENT = 7,
-	REPORT_REASON_UNFITTINGSTATEMENT = 8,
-	REPORT_REASON_LANGUAGESTATEMENT = 9,
-	REPORT_REASON_DISCLOSURE = 10,
-	REPORT_REASON_RULEVIOLATION = 11,
-	REPORT_REASON_STATEMENT_BUGABUSE = 12,
-	REPORT_REASON_UNOFFICIALSOFTWARE = 13,
-	REPORT_REASON_PRETENDING = 14,
-	REPORT_REASON_HARASSINGOWNERS = 15,
-	REPORT_REASON_FALSEINFO = 16,
-	REPORT_REASON_ACCOUNTSHARING = 17,
-	REPORT_REASON_STEALINGDATA = 18,
-	REPORT_REASON_SERVICEATTACKING = 19,
-	REPORT_REASON_SERVICEAGREEMENT = 20
-};
-
-enum BugReportType_t : uint8_t
-{
-	BUG_CATEGORY_MAP = 0,
-	BUG_CATEGORY_TYPO = 1,
-	BUG_CATEGORY_TECHNICAL = 2,
-	BUG_CATEGORY_OTHER = 3
-};
-
-enum ThreadState
-{
+enum ThreadState {
 	THREAD_STATE_RUNNING,
 	THREAD_STATE_CLOSING,
 	THREAD_STATE_TERMINATED,
 };
 
-enum itemAttrTypes : uint32_t
-{
+enum itemAttrTypes : uint32_t {
 	ITEM_ATTRIBUTE_NONE,
 
 	ITEM_ATTRIBUTE_ACTIONID = 1 << 0,
@@ -78,125 +52,65 @@ enum itemAttrTypes : uint32_t
 	ITEM_ATTRIBUTE_CHARGES = 1 << 20,
 	ITEM_ATTRIBUTE_FLUIDTYPE = 1 << 21,
 	ITEM_ATTRIBUTE_DOORID = 1 << 22,
-	ITEM_ATTRIBUTE_DECAYTO = 1 << 23,
-	ITEM_ATTRIBUTE_WRAPID = 1 << 24,
-	ITEM_ATTRIBUTE_STOREITEM = 1 << 25,
-	ITEM_ATTRIBUTE_ATTACK_SPEED = 1 << 26,
-	ITEM_ATTRIBUTE_OPENCONTAINER = 1 << 27,
-
-	ITEM_ATTRIBUTE_CUSTOM = 1U << 31
 };
 
-enum VipStatus_t : uint8_t
-{
+enum VipStatus_t : uint8_t {
 	VIPSTATUS_OFFLINE = 0,
-	VIPSTATUS_ONLINE = 1,
-	VIPSTATUS_PENDING = 2,
-	VIPSTATUS_TRAINING = 3
+	VIPSTATUS_ONLINE = 1
 };
 
-enum MarketAction_t
-{
-	MARKETACTION_BUY = 0,
-	MARKETACTION_SELL = 1,
-};
-
-enum MarketRequest_t
-{
-	MARKETREQUEST_OWN_HISTORY = 1,
-	MARKETREQUEST_OWN_OFFERS = 2,
-	MARKETREQUEST_ITEM = 3,
-};
-
-enum MarketOfferState_t
-{
-	OFFERSTATE_ACTIVE = 0,
-	OFFERSTATE_CANCELLED = 1,
-	OFFERSTATE_EXPIRED = 2,
-	OFFERSTATE_ACCEPTED = 3,
-
-	OFFERSTATE_ACCEPTEDEX = 255,
-};
-
-enum ChannelEvent_t : uint8_t
-{
+enum ChannelEvent_t : uint8_t {
 	CHANNELEVENT_JOIN = 0,
 	CHANNELEVENT_LEAVE = 1,
 	CHANNELEVENT_INVITE = 2,
 	CHANNELEVENT_EXCLUDE = 3,
 };
 
-enum CreatureType_t : uint8_t
-{
+enum CreatureType_t : uint8_t {
 	CREATURETYPE_PLAYER = 0,
 	CREATURETYPE_MONSTER = 1,
 	CREATURETYPE_NPC = 2,
 	CREATURETYPE_SUMMON_OWN = 3,
 	CREATURETYPE_SUMMON_OTHERS = 4,
-	CREATURETYPE_HIDDEN = 5,
 };
 
-enum OperatingSystem_t : uint8_t
-{
-	CLIENTOS_NONE = 0,
-
+enum OperatingSystem_t : uint8_t {
 	CLIENTOS_LINUX = 1,
 	CLIENTOS_WINDOWS = 2,
 	CLIENTOS_FLASH = 3,
-	CLIENTOS_QT_LINUX = 4,
-	CLIENTOS_QT_WINDOWS = 5,
-	CLIENTOS_QT_MAC = 6,
-	CLIENTOS_QT_LINUX2 = 7,
 
 	CLIENTOS_OTCLIENT_LINUX = 10,
 	CLIENTOS_OTCLIENT_WINDOWS = 11,
 	CLIENTOS_OTCLIENT_MAC = 12,
 };
 
-enum SpellGroup_t : uint8_t
-{
+enum SpellGroup_t : uint8_t {
 	SPELLGROUP_NONE = 0,
 	SPELLGROUP_ATTACK = 1,
 	SPELLGROUP_HEALING = 2,
 	SPELLGROUP_SUPPORT = 3,
 	SPELLGROUP_SPECIAL = 4,
-	// SPELLGROUP_CONJURE = 5,
-	SPELLGROUP_CRIPPLING = 6,
-	SPELLGROUP_FOCUS = 7,
-	SPELLGROUP_ULTIMATESTRIKES = 8,
 };
 
-enum SpellType_t : uint8_t
-{
-	SPELL_UNDEFINED = 0,
-	SPELL_INSTANT = 1,
-	SPELL_RUNE = 2,
-};
-
-enum AccountType_t : uint8_t
-{
+enum AccountType_t : uint8_t {
 	ACCOUNT_TYPE_NORMAL = 1,
 	ACCOUNT_TYPE_TUTOR = 2,
 	ACCOUNT_TYPE_SENIORTUTOR = 3,
 	ACCOUNT_TYPE_GAMEMASTER = 4,
-	ACCOUNT_TYPE_COMMUNITYMANAGER = 5,
-	ACCOUNT_TYPE_GOD = 6
+	ACCOUNT_TYPE_GOD = 5
 };
 
-enum RaceType_t : uint8_t
-{
+enum RaceType_t : uint8_t {
 	RACE_NONE,
 	RACE_VENOM,
 	RACE_BLOOD,
 	RACE_UNDEAD,
 	RACE_FIRE,
 	RACE_ENERGY,
-	RACE_INK,
 };
 
-enum CombatType_t : uint16_t
-{
-	COMBAT_NONE = 0,
+enum CombatType_t {
+	COMBAT_NONE,
 
 	COMBAT_PHYSICALDAMAGE = 1 << 0,
 	COMBAT_ENERGYDAMAGE = 1 << 1,
@@ -207,15 +121,12 @@ enum CombatType_t : uint16_t
 	COMBAT_MANADRAIN = 1 << 6,
 	COMBAT_HEALING = 1 << 7,
 	COMBAT_DROWNDAMAGE = 1 << 8,
-	COMBAT_ICEDAMAGE = 1 << 9,
-	COMBAT_HOLYDAMAGE = 1 << 10,
-	COMBAT_DEATHDAMAGE = 1 << 11,
+	COMBAT_DEATHDAMAGE = 1 << 9,
 
-	COMBAT_COUNT = 12
+	COMBAT_COUNT = 10
 };
 
-enum CombatParam_t
-{
+enum CombatParam_t {
 	COMBAT_PARAM_TYPE,
 	COMBAT_PARAM_EFFECT,
 	COMBAT_PARAM_DISTANCEEFFECT,
@@ -228,19 +139,17 @@ enum CombatParam_t
 	COMBAT_PARAM_USECHARGES,
 };
 
-enum CallBackParam_t
-{
+enum CallBackParam_t {
 	CALLBACK_PARAM_LEVELMAGICVALUE,
 	CALLBACK_PARAM_SKILLVALUE,
 	CALLBACK_PARAM_TARGETTILE,
 	CALLBACK_PARAM_TARGETCREATURE,
 };
 
-enum ConditionParam_t
-{
+enum ConditionParam_t {
 	CONDITION_PARAM_OWNER = 1,
 	CONDITION_PARAM_TICKS = 2,
-	// CONDITION_PARAM_OUTFIT = 3,
+	//CONDITION_PARAM_OUTFIT = 3,
 	CONDITION_PARAM_HEALTHGAIN = 4,
 	CONDITION_PARAM_HEALTHTICKS = 5,
 	CONDITION_PARAM_MANAGAIN = 6,
@@ -284,28 +193,16 @@ enum ConditionParam_t
 	CONDITION_PARAM_BUFF_SPELL = 44,
 	CONDITION_PARAM_SUBID = 45,
 	CONDITION_PARAM_FIELD = 46,
-	CONDITION_PARAM_DISABLE_DEFENSE = 47,
-	CONDITION_PARAM_SPECIALSKILL_CRITICALHITCHANCE = 48,
-	CONDITION_PARAM_SPECIALSKILL_CRITICALHITAMOUNT = 49,
-	CONDITION_PARAM_SPECIALSKILL_LIFELEECHCHANCE = 50,
-	CONDITION_PARAM_SPECIALSKILL_LIFELEECHAMOUNT = 51,
-	CONDITION_PARAM_SPECIALSKILL_MANALEECHCHANCE = 52,
-	CONDITION_PARAM_SPECIALSKILL_MANALEECHAMOUNT = 53,
-	CONDITION_PARAM_AGGRESSIVE = 54,
-	CONDITION_PARAM_DRUNKENNESS = 55,
-	CONDITION_PARAM_MANASHIELD_BREAKABLE = 56,
 };
 
-enum BlockType_t : uint8_t
-{
+enum BlockType_t : uint8_t {
 	BLOCK_NONE,
 	BLOCK_DEFENSE,
 	BLOCK_ARMOR,
 	BLOCK_IMMUNITY
 };
 
-enum skills_t : uint8_t
-{
+enum skills_t : uint8_t {
 	SKILL_FIST = 0,
 	SKILL_CLUB = 1,
 	SKILL_SWORD = 2,
@@ -321,8 +218,7 @@ enum skills_t : uint8_t
 	SKILL_LAST = SKILL_FISHING
 };
 
-enum stats_t
-{
+enum stats_t {
 	STAT_MAXHITPOINTS,
 	STAT_MAXMANAPOINTS,
 	STAT_SOULPOINTS, // unused
@@ -332,29 +228,14 @@ enum stats_t
 	STAT_LAST = STAT_MAGICPOINTS
 };
 
-enum SpecialSkills_t
-{
-	SPECIALSKILL_CRITICALHITCHANCE,
-	SPECIALSKILL_CRITICALHITAMOUNT,
-	SPECIALSKILL_LIFELEECHCHANCE,
-	SPECIALSKILL_LIFELEECHAMOUNT,
-	SPECIALSKILL_MANALEECHCHANCE,
-	SPECIALSKILL_MANALEECHAMOUNT,
-
-	SPECIALSKILL_FIRST = SPECIALSKILL_CRITICALHITCHANCE,
-	SPECIALSKILL_LAST = SPECIALSKILL_MANALEECHAMOUNT
-};
-
-enum formulaType_t
-{
+enum formulaType_t {
 	COMBAT_FORMULA_UNDEFINED,
 	COMBAT_FORMULA_LEVELMAGIC,
 	COMBAT_FORMULA_SKILL,
 	COMBAT_FORMULA_DAMAGE,
 };
 
-enum ConditionType_t
-{
+enum ConditionType_t {
 	CONDITION_NONE,
 
 	CONDITION_POISON = 1 << 0,
@@ -381,16 +262,13 @@ enum ConditionType_t
 	CONDITION_DAZZLED = 1 << 21,
 	CONDITION_CURSED = 1 << 22,
 	CONDITION_EXHAUST_COMBAT = 1 << 23, // unused
-	CONDITION_EXHAUST_HEAL = 1 << 24,   // unused
+	CONDITION_EXHAUST_HEAL = 1 << 24, // unused
 	CONDITION_PACIFIED = 1 << 25,
 	CONDITION_SPELLCOOLDOWN = 1 << 26,
-	CONDITION_SPELLGROUPCOOLDOWN = 1 << 27,
-	CONDITION_ROOT = 1 << 28,
-	CONDITION_MANASHIELD_BREAKABLE = 1 << 29,
+	// CONDITION_SPELLGROUPCOOLDOWN = 1 << 27,
 };
 
-enum ConditionId_t : int8_t
-{
+enum ConditionId_t : int8_t {
 	CONDITIONID_DEFAULT = -1,
 	CONDITIONID_COMBAT,
 	CONDITIONID_HEAD,
@@ -405,18 +283,18 @@ enum ConditionId_t : int8_t
 	CONDITIONID_AMMO,
 };
 
-enum PlayerSex_t : uint8_t
-{
+enum PlayerSex_t : uint8_t {
 	PLAYERSEX_FEMALE = 0,
 	PLAYERSEX_MALE = 1,
 
 	PLAYERSEX_LAST = PLAYERSEX_MALE
 };
 
-inline constexpr uint16_t VOCATION_NONE = 0;
+enum Vocation_t : uint16_t {
+	VOCATION_NONE = 0
+};
 
-enum ReturnValue
-{
+enum ReturnValue {
 	RETURNVALUE_NOERROR,
 	RETURNVALUE_NOTPOSSIBLE,
 	RETURNVALUE_NOTENOUGHROOM,
@@ -455,7 +333,6 @@ enum ReturnValue
 	RETURNVALUE_NOTENOUGHMANA,
 	RETURNVALUE_NOTENOUGHSOUL,
 	RETURNVALUE_YOUAREEXHAUSTED,
-	RETURNVALUE_YOUCANNOTUSEOBJECTSTHATFAST,
 	RETURNVALUE_PLAYERISNOTREACHABLE,
 	RETURNVALUE_CANONLYUSETHISRUNEONCREATURES,
 	RETURNVALUE_ACTIONNOTPERMITTEDINPROTECTIONZONE,
@@ -475,36 +352,12 @@ enum ReturnValue
 	RETURNVALUE_ACTIONNOTPERMITTEDINANOPVPZONE,
 	RETURNVALUE_YOUCANNOTLOGOUTHERE,
 	RETURNVALUE_YOUNEEDAMAGICITEMTOCASTSPELL,
-	RETURNVALUE_NAMEISTOOAMBIGUOUS,
+	RETURNVALUE_CANNOTCONJUREITEMHERE,
+	RETURNVALUE_YOUNEEDTOSPLITYOURSPEARS,
+	RETURNVALUE_NAMEISTOOAMBIGIOUS,
 	RETURNVALUE_CANONLYUSEONESHIELD,
 	RETURNVALUE_NOPARTYMEMBERSINRANGE,
 	RETURNVALUE_YOUARENOTTHEOWNER,
-	RETURNVALUE_NOSUCHRAIDEXISTS,
-	RETURNVALUE_ANOTHERRAIDISALREADYEXECUTING,
-	RETURNVALUE_TRADEPLAYERFARAWAY,
-	RETURNVALUE_YOUDONTOWNTHISHOUSE,
-	RETURNVALUE_TRADEPLAYERALREADYOWNSAHOUSE,
-	RETURNVALUE_TRADEPLAYERHIGHESTBIDDER,
-	RETURNVALUE_YOUCANNOTTRADETHISHOUSE,
-	RETURNVALUE_YOUDONTHAVEREQUIREDPROFESSION,
-	RETURNVALUE_CANNOTMOVEITEMISNOTSTOREITEM,
-	RETURNVALUE_ITEMCANNOTBEMOVEDTHERE,
-	RETURNVALUE_YOUCANNOTUSETHISBED,
-	RETURNVALUE_QUIVERAMMOONLY,
-};
-
-enum SpeechBubble_t
-{
-	SPEECHBUBBLE_NONE = 0,
-	SPEECHBUBBLE_NORMAL = 1,
-	SPEECHBUBBLE_TRADE = 2,
-	SPEECHBUBBLE_QUEST = 3,
-	SPEECHBUBBLE_COMPASS = 4,
-	SPEECHBUBBLE_NORMAL2 = 5,
-	SPEECHBUBBLE_NORMAL3 = 6,
-	SPEECHBUBBLE_HIRELING = 7,
-
-	SPEECHBUBBLE_LAST = SPEECHBUBBLE_HIRELING
 };
 
 enum MapMark_t
@@ -531,109 +384,41 @@ enum MapMark_t
 	MAPMARK_GREENSOUTH = 19,
 };
 
-struct Outfit_t
-{
-	uint16_t lookType = 0;
-	uint16_t lookTypeEx = 0;
-	uint8_t lookHead = 0;
-	uint8_t lookBody = 0;
-	uint8_t lookLegs = 0;
-	uint8_t lookFeet = 0;
-	uint8_t lookAddons = 0;
-	uint16_t lookMount = 0;
-	uint8_t lookMountHead = 0;
-	uint8_t lookMountBody = 0;
-	uint8_t lookMountLegs = 0;
-	uint8_t lookMountFeet = 0;
+struct Outfit_t {
+	Outfit_t() {
+		reset();
+	}
+
+	void reset() {
+		lookType = 0;
+		lookTypeEx = 0;
+		lookHead = 0;
+		lookBody = 0;
+		lookLegs = 0;
+		lookFeet = 0;
+		lookAddons = 0;
+	}
+
+	uint16_t lookType;
+	uint16_t lookTypeEx;
+	uint8_t lookHead;
+	uint8_t lookBody;
+	uint8_t lookLegs;
+	uint8_t lookFeet;
+	uint8_t lookAddons;
 };
 
-struct LightInfo
-{
-	uint8_t level = 0;
-	uint8_t color = 215;
-	constexpr LightInfo() = default;
-	constexpr LightInfo(uint8_t level, uint8_t color) : level(level), color(color) {}
-};
-
-struct ShopInfo
-{
-	uint16_t itemId = 0;
-	int32_t subType = 1;
-	int64_t buyPrice = 0;
-	int64_t sellPrice = 0;
-	std::string realName = "";
-
-	ShopInfo() = default;
-	ShopInfo(uint16_t itemId, int32_t subType = 0, int64_t buyPrice = 0, int64_t sellPrice = 0,
-	         std::string realName = "") :
-	    itemId(itemId), subType(subType), buyPrice(buyPrice), sellPrice(sellPrice), realName(std::move(realName))
-	{}
-};
-
-struct MarketOffer
-{
-	uint64_t price;
-	uint32_t timestamp;
-	uint16_t amount;
-	uint16_t counter;
-	uint16_t itemId;
-	std::string playerName;
-};
-
-struct MarketOfferEx
-{
-	MarketOfferEx() = default;
-	MarketOfferEx(MarketOfferEx&& other) :
-	    id(other.id),
-	    playerId(other.playerId),
-	    timestamp(other.timestamp),
-	    price(other.price),
-	    amount(other.amount),
-	    counter(other.counter),
-	    itemId(other.itemId),
-	    type(other.type),
-	    playerName(std::move(other.playerName))
-	{}
-
-	uint32_t id;
-	uint32_t playerId;
-	uint32_t timestamp;
-	uint64_t price;
-	uint16_t amount;
-	uint16_t counter;
-	uint16_t itemId;
-	MarketAction_t type;
-	std::string playerName;
-};
-
-struct HistoryMarketOffer
-{
-	uint32_t timestamp;
-	uint64_t price;
-	uint16_t itemId;
-	uint16_t amount;
-	MarketOfferState_t state;
-};
-
-struct MarketStatistics
-{
-	uint32_t numTransactions = 0;
-	uint32_t highestPrice = 0;
-	uint64_t totalPrice = 0;
-	uint32_t lowestPrice = 0;
-};
-
-struct ModalWindow
-{
-	std::list<std::pair<std::string, uint8_t>> buttons, choices;
-	std::string title, message;
-	uint32_t id;
-	uint8_t defaultEnterButton = 0xFF, defaultEscapeButton = 0xFF;
-	bool priority = false;
-
-	ModalWindow(uint32_t id, std::string title, std::string message) :
-	    title(std::move(title)), message(std::move(message)), id(id)
-	{}
+struct LightInfo {
+	uint8_t level;
+	uint8_t color;
+	LightInfo() {
+		level = 0;
+		color = 0;
+	}
+	LightInfo(uint8_t _level, uint8_t _color) {
+		level = _level;
+		color = _color;
+	}
 };
 
 enum CombatOrigin
@@ -643,74 +428,22 @@ enum CombatOrigin
 	ORIGIN_SPELL,
 	ORIGIN_MELEE,
 	ORIGIN_RANGED,
-	ORIGIN_WAND,
-	ORIGIN_REFLECT,
 };
 
 struct CombatDamage
 {
-	struct
+	struct {
+		CombatType_t type;
+		int32_t value;
+	} primary, secondary;
+
+	CombatOrigin origin;
+	CombatDamage()
 	{
-		CombatType_t type = COMBAT_NONE;
-		int32_t value = 0;
-	} primary = {}, secondary = {};
-
-	CombatOrigin origin = ORIGIN_NONE;
-	BlockType_t blockType = BLOCK_NONE;
-	bool critical = false;
-	bool leeched = false;
-};
-
-using MarketOfferList = std::list<MarketOffer>;
-using HistoryMarketOfferList = std::list<HistoryMarketOffer>;
-using ShopInfoList = std::list<ShopInfo>;
-
-enum MonstersEvent_t : uint8_t
-{
-	MONSTERS_EVENT_NONE = 0,
-	MONSTERS_EVENT_THINK = 1,
-	MONSTERS_EVENT_APPEAR = 2,
-	MONSTERS_EVENT_DISAPPEAR = 3,
-	MONSTERS_EVENT_MOVE = 4,
-	MONSTERS_EVENT_SAY = 5,
-};
-
-struct Reflect
-{
-	Reflect() = default;
-	Reflect(uint16_t percent, uint16_t chance) : percent(percent), chance(chance){};
-
-	Reflect& operator+=(const Reflect& other)
-	{
-		percent += other.percent;
-		chance = std::min<uint16_t>(100, chance + other.chance);
-		return *this;
+		origin = ORIGIN_NONE;
+		primary.type = secondary.type = COMBAT_NONE;
+		primary.value = secondary.value = 0;
 	}
-
-	uint16_t percent = 0;
-	uint16_t chance = 0;
 };
 
-enum ClientDamageType
-{
-	CLIENT_DAMAGETYPE_PHYSICAL = 0,
-	CLIENT_DAMAGETYPE_FIRE = 1,
-	CLIENT_DAMAGETYPE_EARTH = 2,
-	CLIENT_DAMAGETYPE_ENERGY = 3,
-	CLIENT_DAMAGETYPE_ICE = 4,
-	CLIENT_DAMAGETYPE_HOLY = 5,
-	CLIENT_DAMAGETYPE_DEATH = 6,
-	CLIENT_DAMAGETYPE_HEALING = 7,
-	CLIENT_DAMAGETYPE_DROWN = 8,
-	CLIENT_DAMAGETYPE_LIFEDRAIN = 9,
-	CLIENT_DAMAGETYPE_UNDEFINED = 10
-};
-
-enum DamageAnalyzerImpactType
-{
-	HEALING = 0,
-	DEALT = 1,
-	RECEIVED = 2
-};
-
-#endif // FS_ENUMS_H
+#endif
